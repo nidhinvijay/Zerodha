@@ -175,13 +175,20 @@ import { FsmService } from './fsm.service';
     .time { opacity: 0.6; font-size: 0.8rem; }
     
     /* Log styles */
+    .log-row { display: grid; grid-template-columns: 70px 120px 140px 1fr; align-items: center; }
     .log-row.entry, .log-row.buy_signal { border-left: 3px solid #00c853; }
-    .log-row.blocked, .log-row.stop_loss { border-left: 3px solid #ff9800; }
-    .log-row.sell_signal, .log-row.sell_signal_exit { border-left: 3px solid #ff5252; }
+    .log-row.entry .log-event, .log-row.buy_signal .log-event { color: #00c853; }
+    .log-row.blocked { border-left: 3px solid #ff9800; }
+    .log-row.blocked .log-event { color: #ff9800; }
+    .log-row.stop_loss { border-left: 3px solid #ff5252; }
+    .log-row.stop_loss .log-event { color: #ff5252; }
+    .log-row.sell_exit, .log-row.sell_signal { border-left: 3px solid #ff5252; }
+    .log-row.sell_exit .log-event, .log-row.sell_signal .log-event { color: #ff5252; }
     .log-row.minute_retry { border-left: 3px solid #2196f3; }
-    .log-time { opacity: 0.6; min-width: 70px; }
-    .log-event { font-weight: 600; min-width: 120px; color: #4fc3f7; }
-    .log-state { opacity: 0.8; min-width: 100px; }
+    .log-row.minute_retry .log-event { color: #2196f3; }
+    .log-time { opacity: 0.6; }
+    .log-event { font-weight: 600; }
+    .log-state { opacity: 0.8; }
     .log-detail { opacity: 0.6; font-size: 0.8rem; }
   `]
 })
