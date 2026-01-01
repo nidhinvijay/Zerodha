@@ -1,12 +1,17 @@
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 const { KiteTicker } = require("kiteconnect");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
+
+// Serve Angular build (production)
+const angularDist = path.join(__dirname, "../angular/dist/angular/browser");
+app.use(express.static(angularDist));
 
 // Single instrument config (NIFTY CE option)
 const INSTRUMENT = {
@@ -18,8 +23,13 @@ const INSTRUMENT = {
 let ticker = null;
 let lastTick = null;
 
-// Health check
-app.get("/", (req, res) => res.json({ status: "ok", instrument: INSTRUMENT.symbol }));
+// Health check API
+app.get("/api/health", (req, res) => res.json({ status: "ok", instrument: INSTRUMENT.symbol }));
+
+// Serve Angular for all other routes (SPA support)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(angularDist, "index.html"));
+});
 
 // Socket.IO connection
 io.on("connection", (socket) => {
