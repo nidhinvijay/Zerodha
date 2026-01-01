@@ -11,7 +11,7 @@ const STATES = {
 };
 
 class FSM {
-  constructor(symbol, lot = 1) {
+  constructor(symbol, lot = 1, onLiveBuy = null, onLiveSell = null) {
     this.symbol = symbol;
     this.lot = lot;
     this.state = STATES.NOSIGNAL;
@@ -19,6 +19,10 @@ class FSM {
     this.ltp = null;
     this.blockedAtMs = null;
     this.lastCheckedAtMs = null;
+    
+    // Order callbacks
+    this.onLiveBuy = onLiveBuy;   // Called when live activates
+    this.onLiveSell = onLiveSell; // Called when live closes
     
     // Paper trading
     this.entryPrice = null;
@@ -92,6 +96,11 @@ class FSM {
         cumPnL, 
         liveEntryPrice: this.liveEntryPrice 
       });
+      
+      // Place live BUY order
+      if (this.onLiveBuy) {
+        this.onLiveBuy();
+      }
     }
   }
 
@@ -140,6 +149,11 @@ class FSM {
       pnl,
       reason 
     });
+    
+    // Place live SELL order
+    if (this.onLiveSell) {
+      this.onLiveSell();
+    }
     
     this.liveActive = false;
     this.liveEntryPrice = null;

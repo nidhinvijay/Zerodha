@@ -1,23 +1,47 @@
 /**
  * FSM Manager
- * Creates and manages one FSM per instrument
+ * Creates and manages one FSM per instrument with live order callbacks
  */
 
 const { FSM } = require('./fsm');
+const orders = require('./orders');
 
 class FsmManager {
   constructor() {
     this.fsms = new Map(); // token -> FSM instance
     this.signals = new Map(); // token -> signal array
+    this.instruments = new Map(); // token -> instrument
   }
 
   // Initialize FSM for each instrument
   init(instruments) {
+    // Initialize orders module
+    orders.init();
+    
     for (const inst of instruments) {
-      this.fsms.set(inst.token, new FSM(inst.zerodha, inst.lot));
+      // Store instrument for order placement
+      this.instruments.set(inst.token, inst);
+      
+      // Create FSM with order callbacks
+      const fsm = new FSM(
+        inst.zerodha, 
+        inst.lot,
+        // onLiveBuy - called when live activates
+        () => {
+          console.log(`[FsmManager] Live BUY triggered for ${inst.zerodha}`);
+          orders.buyOrder(inst).catch(err => console.error('[FsmManager] Buy order error:', err));
+        },
+        // onLiveSell - called when live closes
+        () => {
+          console.log(`[FsmManager] Live SELL triggered for ${inst.zerodha}`);
+          orders.sellOrder(inst).catch(err => console.error('[FsmManager] Sell order error:', err));
+        }
+      );
+      
+      this.fsms.set(inst.token, fsm);
       this.signals.set(inst.token, []);
     }
-    console.log(`[FsmManager] Initialized ${this.fsms.size} FSMs`);
+    console.log(`[FsmManager] Initialized ${this.fsms.size} FSMs with order callbacks`);
   }
 
   // Get FSM by token
