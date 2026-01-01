@@ -77,7 +77,7 @@ import { FsmService } from './fsm.service';
             <h2>📋 State Log</h2>
           </div>
           @if (fsm$ | async; as fsm) {
-            @if (fsm.stateLog?.length === 0) {
+            @if (fsm.stateLog.length === 0) {
               <div class="empty">No state changes yet</div>
             } @else {
               <div class="log-list">
