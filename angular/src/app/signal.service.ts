@@ -22,9 +22,15 @@ export class SignalService {
     
     this.socket = io(serverUrl);
     
+    // Receive new signal
     this.socket.on('signal', (signal: Signal) => {
       const current = this.signalsSubject.value;
-      this.signalsSubject.next([signal, ...current].slice(0, 20)); // Keep last 20
+      this.signalsSubject.next([signal, ...current].slice(0, 20));
+    });
+    
+    // Receive signal history on connect
+    this.socket.on('signals', (history: Signal[]) => {
+      this.signalsSubject.next(history);
     });
   }
 

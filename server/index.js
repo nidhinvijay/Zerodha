@@ -26,6 +26,7 @@ const fsm = new FSM(INSTRUMENT.symbol);
 
 let ticker = null;
 let lastTick = null;
+let signals = []; // Store last 20 signals
 
 // Parse JSON and text body
 app.use(express.json());
@@ -73,6 +74,10 @@ app.post("/webhook", (req, res) => {
   // Update FSM with signal
   const fsmState = fsm.handleSignal(signal);
   
+  // Store signal (keep last 100)
+  signals.unshift(signal);
+  if (signals.length > 100) signals.pop();
+  
   // Broadcast signal and FSM state
   io.emit("signal", signal);
   io.emit("fsm", fsmState);
@@ -92,6 +97,7 @@ io.on("connection", (socket) => {
   // Send current state on connect
   if (lastTick) socket.emit("tick", lastTick);
   socket.emit("fsm", fsm.getSnapshot());
+  socket.emit("signals", signals); // Send signal history
   
   socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
