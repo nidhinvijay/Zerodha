@@ -1,6 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { io, Socket } from 'socket.io-client';
+import { SocketService } from './socket.service';
 
 export interface Instrument {
   tradingview: string;
@@ -12,7 +12,7 @@ export interface Instrument {
 
 @Injectable({ providedIn: 'root' })
 export class InstrumentService {
-  private socket: Socket;
+  private socketService = inject(SocketService);
   
   private instrumentsSubject = new BehaviorSubject<Instrument[]>([]);
   readonly instruments$ = this.instrumentsSubject.asObservable();
@@ -21,14 +21,10 @@ export class InstrumentService {
   readonly selectedToken$ = this.selectedTokenSubject.asObservable();
 
   constructor() {
-    const serverUrl = location.hostname === 'localhost' 
-      ? 'http://localhost:3004' 
-      : location.origin;
-    
-    this.socket = io(serverUrl);
+    const socket = this.socketService.socket;
     
     // Receive instruments list on connect
-    this.socket.on('instruments', (list: Instrument[]) => {
+    socket.on('instruments', (list: Instrument[]) => {
       this.instrumentsSubject.next(list);
       // Auto-select first instrument
       if (list.length > 0 && !this.selectedTokenSubject.value) {
@@ -39,7 +35,7 @@ export class InstrumentService {
 
   selectInstrument(token: number) {
     this.selectedTokenSubject.next(token);
-    this.socket.emit('selectInstrument', token);
+    this.socketService.socket.emit('selectInstrument', token);
   }
 
   getSelectedToken(): number | null {

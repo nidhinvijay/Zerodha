@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, combineLatest, map } from 'rxjs';
-import { io, Socket } from 'socket.io-client';
+import { SocketService } from './socket.service';
 import { InstrumentService } from './instrument.service';
 
 export interface Signal {
@@ -14,13 +14,12 @@ export interface Signal {
 
 @Injectable({ providedIn: 'root' })
 export class SignalService {
+  private socketService = inject(SocketService);
   private instrumentService = inject(InstrumentService);
-  private socket: Socket;
   
-  private signalsMap = new Map<number, Signal[]>(); // token -> signals
+  private signalsMap = new Map<number, Signal[]>();
   private signalsSubject = new BehaviorSubject<Map<number, Signal[]>>(new Map());
 
-  // Observable that emits only the selected instrument's signals
   readonly signals$ = combineLatest([
     this.signalsSubject,
     this.instrumentService.selectedToken$
@@ -29,21 +28,17 @@ export class SignalService {
   );
 
   constructor() {
-    const serverUrl = location.hostname === 'localhost' 
-      ? 'http://localhost:3004' 
-      : location.origin;
-    
-    this.socket = io(serverUrl);
+    const socket = this.socketService.socket;
     
     // Receive new signal
-    this.socket.on('signal', (signal: Signal) => {
+    socket.on('signal', (signal: Signal) => {
       const current = this.signalsMap.get(signal.token) || [];
       this.signalsMap.set(signal.token, [signal, ...current].slice(0, 100));
       this.signalsSubject.next(new Map(this.signalsMap));
     });
     
     // Receive signal history for selected instrument
-    this.socket.on('signals', (history: Signal[]) => {
+    socket.on('signals', (history: Signal[]) => {
       if (history.length > 0) {
         const token = history[0].token;
         this.signalsMap.set(token, history);

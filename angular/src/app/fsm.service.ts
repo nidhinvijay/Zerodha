@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, combineLatest, map } from 'rxjs';
-import { io, Socket } from 'socket.io-client';
+import { SocketService } from './socket.service';
 import { InstrumentService } from './instrument.service';
 
 export type FsmState = 'NOSIGNAL' | 'NOPOSITION_SIGNAL' | 'BUYPOSITION' | 'NOPOSITION_BLOCKED';
@@ -27,13 +27,12 @@ export interface FsmSnapshot {
 
 @Injectable({ providedIn: 'root' })
 export class FsmService {
+  private socketService = inject(SocketService);
   private instrumentService = inject(InstrumentService);
-  private socket: Socket;
   
-  private fsmMap = new Map<number, FsmSnapshot>(); // token -> fsm
+  private fsmMap = new Map<number, FsmSnapshot>();
   private fsmSubject = new BehaviorSubject<Map<number, FsmSnapshot>>(new Map());
 
-  // Observable that emits only the selected instrument's FSM
   readonly fsm$ = combineLatest([
     this.fsmSubject,
     this.instrumentService.selectedToken$
@@ -42,20 +41,13 @@ export class FsmService {
   );
 
   constructor() {
-    const serverUrl = location.hostname === 'localhost' 
-      ? 'http://localhost:3004' 
-      : location.origin;
+    const socket = this.socketService.socket;
     
-    this.socket = io(serverUrl);
-    
-    // Receive FSM state from backend
-    this.socket.on('fsm', (snapshot: FsmSnapshot) => {
+    socket.on('fsm', (snapshot: FsmSnapshot) => {
       if (snapshot.token) {
         this.fsmMap.set(snapshot.token, snapshot);
         this.fsmSubject.next(new Map(this.fsmMap));
       }
     });
-    
-    this.socket.on('connect', () => console.log('FSM service connected'));
   }
 }
