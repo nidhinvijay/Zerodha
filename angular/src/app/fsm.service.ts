@@ -13,6 +13,15 @@ export interface StateLogEntry {
   threshold: number | null;
 }
 
+export interface Trade {
+  entry: number;
+  exit: number;
+  pnl: number;
+  lot: number;
+  reason: string;
+  timestamp: string;
+}
+
 export interface FsmSnapshot {
   token: number;
   symbol: string | null;
@@ -28,6 +37,7 @@ export interface FsmSnapshot {
   unrealizedPnL: number;
   realizedPnL: number;
   cumPnL: number;
+  paperTrades: Trade[];
   
   // Live trading
   liveActive: boolean;
@@ -35,6 +45,7 @@ export interface FsmSnapshot {
   liveUnrealizedPnL: number;
   liveRealizedPnL: number;
   liveCumPnL: number;
+  liveTrades: Trade[];
   
   stateLog: StateLogEntry[];
 }

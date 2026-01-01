@@ -160,6 +160,85 @@ import { InstrumentService } from './instrument.service';
           }
         </div>
       </div>
+
+      <!-- Trades History -->
+      @if (fsm$ | async; as fsm) {
+        <div class="trades-section">
+          <!-- Paper Trades -->
+          <div class="card trades-card">
+            <div class="card-header">
+              <h2>📝 Paper Trades</h2>
+            </div>
+            @if (fsm.paperTrades?.length === 0) {
+              <div class="empty">No paper trades yet</div>
+            } @else {
+              <table class="trades-table">
+                <thead>
+                  <tr>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>Lot</th>
+                    <th>PnL</th>
+                    <th>Reason</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (trade of fsm.paperTrades; track trade.timestamp) {
+                    <tr>
+                      <td>₹{{ trade.entry | number:'1.2-2' }}</td>
+                      <td>₹{{ trade.exit | number:'1.2-2' }}</td>
+                      <td>{{ trade.lot }}</td>
+                      <td [class.positive]="trade.pnl > 0" [class.negative]="trade.pnl < 0">
+                        ₹{{ trade.pnl | number:'1.2-2' }}
+                      </td>
+                      <td>{{ trade.reason }}</td>
+                      <td>{{ trade.timestamp | date:'HH:mm:ss' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+
+          <!-- Live Trades -->
+          <div class="card trades-card">
+            <div class="card-header">
+              <h2>🔴 Live Trades</h2>
+            </div>
+            @if (fsm.liveTrades?.length === 0) {
+              <div class="empty">No live trades yet</div>
+            } @else {
+              <table class="trades-table">
+                <thead>
+                  <tr>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>Lot</th>
+                    <th>PnL</th>
+                    <th>Reason</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (trade of fsm.liveTrades; track trade.timestamp) {
+                    <tr>
+                      <td>₹{{ trade.entry | number:'1.2-2' }}</td>
+                      <td>₹{{ trade.exit | number:'1.2-2' }}</td>
+                      <td>{{ trade.lot }}</td>
+                      <td [class.positive]="trade.pnl > 0" [class.negative]="trade.pnl < 0">
+                        ₹{{ trade.pnl | number:'1.2-2' }}
+                      </td>
+                      <td>{{ trade.reason }}</td>
+                      <td>{{ trade.timestamp | date:'HH:mm:ss' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+        </div>
+      }
     </div>
   `,
   styles: [`
@@ -279,6 +358,18 @@ import { InstrumentService } from './instrument.service';
     .log-event { font-weight: 600; }
     .log-state { opacity: 0.8; }
     .log-detail { opacity: 0.6; font-size: 0.8rem; }
+    
+    /* Trades Section */
+    .trades-section { 
+      display: flex; gap: 2rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; 
+    }
+    .trades-card { min-width: 400px; max-height: 200px; overflow-y: auto; }
+    .trades-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .trades-table th, .trades-table td { 
+      padding: 0.5rem 0.75rem; text-align: left; 
+      border-bottom: 1px solid rgba(255,255,255,0.1); 
+    }
+    .trades-table th { opacity: 0.7; font-weight: 500; }
   `]
 })
 export class AppComponent {
