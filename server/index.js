@@ -8,6 +8,7 @@ const { KiteTicker } = require("kiteconnect");
 // Modules
 const { loadInstruments, findByTradingview, findByToken, getAllTokens } = require("./instruments");
 const fsmManager = require("./fsmManager");
+const orders = require("./orders");
 
 const app = express();
 const server = http.createServer(app);
@@ -178,19 +179,38 @@ function startTicker() {
   console.log("Connecting to Zerodha...");
 }
 
-// Minute boundary check for blocked positions
+// Minute boundary check for blocked positions + daily reset
 setInterval(() => {
   const now = new Date();
+  
+  // Minute retry for blocked positions
   if (now.getSeconds() === 0) {
     const results = fsmManager.minuteRetry();
     for (const { token, fsm } of results) {
       io.emit("fsm", { token, ...fsm });
     }
+    
+    // Daily reset at 15:30 (market close)
+    if (now.getHours() === 15 && now.getMinutes() === 30) {
+      fsmManager.dailyReset();
+      // Broadcast reset to all clients
+      for (const inst of instruments) {
+        const snapshot = fsmManager.getSnapshot(inst.token);
+        if (snapshot) {
+          io.emit("fsm", { token: inst.token, ...snapshot.fsm });
+          io.emit("signals", snapshot.signals);
+        }
+      }
+    }
   }
 }, 1000);
 
 const PORT = process.env.PORT || 3004;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  
+  // Sync positions on startup
+  await orders.syncPositions();
+  
   startTicker();
 });

@@ -104,6 +104,21 @@ class FsmManager {
     }
     return results;
   }
+
+  // Daily reset - clear all FSM states (call at market close)
+  dailyReset() {
+    console.log('[FsmManager] ═══════════════════════════════════════');
+    console.log('[FsmManager] DAILY RESET - Clearing all states');
+    console.log('[FsmManager] ═══════════════════════════════════════');
+    
+    for (const [token, fsm] of this.fsms) {
+      fsm.reset();
+      this.signals.set(token, []);
+    }
+    
+    console.log(`[FsmManager] Reset ${this.fsms.size} FSMs`);
+    return true;
+  }
 }
 
 module.exports = new FsmManager(); // Singleton
