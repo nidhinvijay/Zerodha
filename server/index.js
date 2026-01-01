@@ -4,6 +4,7 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const { KiteTicker } = require("kiteconnect");
+const { FSM } = require("./fsm");
 
 const app = express();
 const server = http.createServer(app);
@@ -13,20 +14,73 @@ const io = new Server(server, { cors: { origin: "*" } });
 const angularDist = path.join(__dirname, "../angular/dist/angular/browser");
 app.use(express.static(angularDist));
 
-// Single instrument config (NIFTY CE option)
+// Single instrument config
 const INSTRUMENT = {
   token: 10361602,
   symbol: "NIFTY2610626150CE",
   lot: 65
 };
 
+// Initialize FSM
+const fsm = new FSM(INSTRUMENT.symbol);
+
 let ticker = null;
 let lastTick = null;
 
-// Health check API
-app.get("/api/health", (req, res) => res.json({ status: "ok", instrument: INSTRUMENT.symbol }));
+// Parse JSON and text body
+app.use(express.json());
+app.use(express.text());
 
-// Serve Angular for all other routes (SPA support)
+// Health check API
+app.get("/api/health", (req, res) => res.json({ 
+  status: "ok", 
+  instrument: INSTRUMENT.symbol,
+  fsm: fsm.getSnapshot()
+}));
+
+// Parse TradingView text format
+function parseSignal(body) {
+  if (typeof body === 'object') {
+    return {
+      symbol: body.symbol || body.sym || INSTRUMENT.symbol,
+      intent: body.intent || body.side || "UNKNOWN",
+      stoppx: parseFloat(body.stoppx || body.stopPx || body.price) || null
+    };
+  }
+  
+  const text = String(body);
+  const signal = { symbol: INSTRUMENT.symbol, intent: "UNKNOWN", stoppx: null };
+  
+  if (text.includes("Entry")) signal.intent = "BUY";
+  else if (text.includes("Exit")) signal.intent = "SELL";
+  
+  const stopMatch = text.match(/stopPx\s*=\s*([\d.]+)/i);
+  if (stopMatch) signal.stoppx = parseFloat(stopMatch[1]);
+  
+  const symMatch = text.match(/sym\s*=\s*(\S+)/i);
+  if (symMatch) signal.symbol = symMatch[1];
+  
+  return signal;
+}
+
+// Webhook endpoint
+app.post("/webhook", (req, res) => {
+  const parsed = parseSignal(req.body);
+  const signal = { ...parsed, timestamp: new Date().toISOString() };
+  
+  console.log("Webhook received:", signal);
+  
+  // Update FSM with signal
+  const fsmState = fsm.handleSignal(signal);
+  
+  // Broadcast signal and FSM state
+  io.emit("signal", signal);
+  io.emit("fsm", fsmState);
+  
+  res.json({ status: "ok", received: signal, fsm: fsmState });
+});
+
+// Serve Angular for all other routes
 app.get("*", (req, res) => {
   res.sendFile(path.join(angularDist, "index.html"));
 });
@@ -34,7 +88,11 @@ app.get("*", (req, res) => {
 // Socket.IO connection
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
+  
+  // Send current state on connect
   if (lastTick) socket.emit("tick", lastTick);
+  socket.emit("fsm", fsm.getSnapshot());
+  
   socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
 
@@ -67,7 +125,13 @@ function startTicker() {
         volume: t.volume,
         timestamp: new Date().toISOString()
       };
+      
+      // Update FSM with tick
+      const fsmState = fsm.handleTick(lastTick);
+      
+      // Broadcast tick and FSM state
       io.emit("tick", lastTick);
+      io.emit("fsm", fsmState);
     }
   });
 
@@ -78,7 +142,17 @@ function startTicker() {
   console.log("Connecting to Zerodha...");
 }
 
-const PORT = process.env.PORT || 3001;
+// Minute boundary check for blocked positions
+setInterval(() => {
+  const now = new Date();
+  if (now.getSeconds() === 0) {
+    if (fsm.minuteRetry()) {
+      io.emit("fsm", fsm.getSnapshot());
+    }
+  }
+}, 1000);
+
+const PORT = process.env.PORT || 3004;
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   startTicker();

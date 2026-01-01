@@ -18,7 +18,12 @@ export class TickService {
   readonly tick$ = this.tickSubject.asObservable();
 
   constructor() {
-    this.socket = io('http://localhost:3004');
+    // Use same origin in production, localhost for dev
+    const serverUrl = location.hostname === 'localhost' 
+      ? 'http://localhost:3004' 
+      : location.origin;
+    
+    this.socket = io(serverUrl);
     this.socket.on('tick', (tick: Tick) => this.tickSubject.next(tick));
     this.socket.on('connect', () => console.log('Connected to server'));
     this.socket.on('disconnect', () => console.log('Disconnected'));
