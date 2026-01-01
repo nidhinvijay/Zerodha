@@ -2,7 +2,7 @@ import { Component, inject } from '@angular/core';
 import { AsyncPipe, DecimalPipe, DatePipe } from '@angular/common';
 import { SignalService } from './signal.service';
 import { FsmService } from './fsm.service';
-import { InstrumentService, Instrument } from './instrument.service';
+import { InstrumentService } from './instrument.service';
 
 @Component({
   selector: 'app-root',
@@ -27,38 +27,85 @@ import { InstrumentService, Instrument } from './instrument.service';
         <table>
           <thead>
             <tr>
-              <th>#</th>
               <th>Instrument</th>
               <th>LTP</th>
-              <th>THRESHOLD</th>
-              <th>NOSIGNAL</th>
-              <th>NOPOSITION_SIGNAL</th>
-              <th>BUYPOSITION</th>
-              <th>NOPOSITION_BLOCKED</th>
+              <th>Entry</th>
+              <th>Threshold</th>
+              <th>State</th>
             </tr>
           </thead>
           <tbody>
             @if (fsm$ | async; as fsm) {
               <tr>
-                <td>1</td>
                 <td>{{ fsm.symbol || '--' }}</td>
                 <td>{{ fsm.ltp ? (fsm.ltp | number:'1.2-2') : '--' }}</td>
+                <td>{{ fsm.entryPrice ? (fsm.entryPrice | number:'1.2-2') : '--' }}</td>
                 <td>{{ fsm.threshold ? (fsm.threshold | number:'1.2-2') : '--' }}</td>
-                <td [class.active]="fsm.state === 'NOSIGNAL'">{{ fsm.state === 'NOSIGNAL' }}</td>
-                <td [class.active]="fsm.state === 'NOPOSITION_SIGNAL'">{{ fsm.state === 'NOPOSITION_SIGNAL' }}</td>
-                <td [class.active]="fsm.state === 'BUYPOSITION'" [class.buy]="fsm.state === 'BUYPOSITION'">{{ fsm.state === 'BUYPOSITION' }}</td>
-                <td [class.active]="fsm.state === 'NOPOSITION_BLOCKED'" [class.blocked]="fsm.state === 'NOPOSITION_BLOCKED'">{{ fsm.state === 'NOPOSITION_BLOCKED' }}</td>
+                <td [class]="fsm.state.toLowerCase()">{{ fsm.state }}</td>
               </tr>
             } @else {
-              <tr>
-                <td colspan="8" class="empty">Select an instrument</td>
-              </tr>
+              <tr><td colspan="5" class="empty">Select an instrument</td></tr>
             }
           </tbody>
         </table>
         @if ((fsm$ | async)?.blockedAtMs; as blockedAt) {
-          <div class="blocked-info">
-            ⏳ Blocked since {{ blockedAt | date:'HH:mm:ss' }} — retries at next :00
+          <div class="blocked-info">⏳ Blocked since {{ blockedAt | date:'HH:mm:ss' }} — retries at next :00</div>
+        }
+      </div>
+
+      <!-- PnL Cards -->
+      <div class="pnl-cards">
+        @if (fsm$ | async; as fsm) {
+          <!-- Paper Trading -->
+          <div class="pnl-card paper">
+            <h3>📝 Paper Trading</h3>
+            <div class="pnl-row">
+              <span>Unrealized:</span>
+              <span [class.positive]="fsm.unrealizedPnL > 0" [class.negative]="fsm.unrealizedPnL < 0">
+                ₹{{ fsm.unrealizedPnL | number:'1.2-2' }}
+              </span>
+            </div>
+            <div class="pnl-row">
+              <span>Realized:</span>
+              <span [class.positive]="fsm.realizedPnL > 0" [class.negative]="fsm.realizedPnL < 0">
+                ₹{{ fsm.realizedPnL | number:'1.2-2' }}
+              </span>
+            </div>
+            <div class="pnl-row total">
+              <span>Cumulative:</span>
+              <span [class.positive]="fsm.cumPnL > 0" [class.negative]="fsm.cumPnL < 0">
+                ₹{{ fsm.cumPnL | number:'1.2-2' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Live Trading -->
+          <div class="pnl-card live" [class.active]="fsm.liveActive">
+            <h3>🔴 Live Trading <span class="status">{{ fsm.liveActive ? 'ACTIVE' : 'INACTIVE' }}</span></h3>
+            @if (fsm.liveActive) {
+              <div class="pnl-row">
+                <span>Entry:</span>
+                <span>₹{{ fsm.liveEntryPrice | number:'1.2-2' }}</span>
+              </div>
+              <div class="pnl-row">
+                <span>Unrealized:</span>
+                <span [class.positive]="fsm.liveUnrealizedPnL > 0" [class.negative]="fsm.liveUnrealizedPnL < 0">
+                  ₹{{ fsm.liveUnrealizedPnL | number:'1.2-2' }}
+                </span>
+              </div>
+            }
+            <div class="pnl-row">
+              <span>Realized:</span>
+              <span [class.positive]="fsm.liveRealizedPnL > 0" [class.negative]="fsm.liveRealizedPnL < 0">
+                ₹{{ fsm.liveRealizedPnL | number:'1.2-2' }}
+              </span>
+            </div>
+            <div class="pnl-row total">
+              <span>Cumulative:</span>
+              <span [class.positive]="fsm.liveCumPnL > 0" [class.negative]="fsm.liveCumPnL < 0">
+                ₹{{ fsm.liveCumPnL | number:'1.2-2' }}
+              </span>
+            </div>
           </div>
         }
       </div>
@@ -129,9 +176,7 @@ import { InstrumentService, Instrument } from './instrument.service';
     h1 { margin-bottom: 1rem; font-weight: 300; }
     
     /* Instrument Dropdown */
-    .instrument-select {
-      margin-bottom: 1.5rem;
-    }
+    .instrument-select { margin-bottom: 1.5rem; }
     .instrument-select select {
       padding: 0.75rem 1.5rem;
       font-size: 1rem;
@@ -142,32 +187,44 @@ import { InstrumentService, Instrument } from './instrument.service';
       cursor: pointer;
       min-width: 300px;
     }
-    .instrument-select select:focus {
-      outline: none;
-      border-color: #4fc3f7;
-    }
-    .instrument-select select option {
-      background: #1a1a2e;
-      color: #fff;
-    }
+    .instrument-select select:focus { outline: none; border-color: #4fc3f7; }
+    .instrument-select select option { background: #1a1a2e; color: #fff; }
     
     /* FSM Table */
-    .fsm-card { margin-bottom: 2rem; overflow-x: auto; }
+    .fsm-card { margin-bottom: 1.5rem; overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; }
     th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
     th { font-weight: 500; opacity: 0.7; font-size: 0.85rem; }
     td { font-size: 0.9rem; }
-    td.active { font-weight: 600; }
-    td.buy { color: #00c853; }
-    td.blocked { color: #ff9800; }
+    td.buyposition { color: #00c853; font-weight: 600; }
+    td.noposition_blocked { color: #ff9800; font-weight: 600; }
+    td.nosignal { opacity: 0.6; }
     .blocked-info { 
-      margin-top: 1rem; 
-      padding: 0.5rem 1rem; 
-      background: rgba(255,152,0,0.2); 
-      border-radius: 8px; 
-      font-size: 0.85rem;
-      color: #ff9800;
+      margin-top: 1rem; padding: 0.5rem 1rem; 
+      background: rgba(255,152,0,0.2); border-radius: 8px; 
+      font-size: 0.85rem; color: #ff9800;
     }
+    
+    /* PnL Cards */
+    .pnl-cards { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; justify-content: center; }
+    .pnl-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      min-width: 200px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .pnl-card h3 { margin: 0 0 0.75rem 0; font-size: 1rem; font-weight: 400; }
+    .pnl-card.paper { border-left: 3px solid #4fc3f7; }
+    .pnl-card.live { border-left: 3px solid #666; }
+    .pnl-card.live.active { border-left: 3px solid #ff5252; background: rgba(255,82,82,0.1); }
+    .pnl-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.9rem; }
+    .pnl-row.total { border-top: 1px solid rgba(255,255,255,0.1); margin-top: 0.5rem; padding-top: 0.5rem; font-weight: 600; }
+    .positive { color: #00c853; }
+    .negative { color: #ff5252; }
+    .status { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; }
+    .pnl-card.live .status { background: rgba(255,255,255,0.1); }
+    .pnl-card.live.active .status { background: #ff5252; color: #fff; }
     
     .cards { display: flex; gap: 2rem; flex-wrap: wrap; justify-content: center; }
     .card {
@@ -177,31 +234,22 @@ import { InstrumentService, Instrument } from './instrument.service';
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255,255,255,0.1);
     }
-    .signals-card { min-width: 320px; max-height: 300px; overflow-y: auto; }
-    .log-card { min-width: 400px; max-height: 300px; overflow-y: auto; }
+    .signals-card { min-width: 320px; max-height: 250px; overflow-y: auto; }
+    .log-card { min-width: 400px; max-height: 250px; overflow-y: auto; }
     
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .card-header h2 { margin: 0; font-size: 1.2rem; font-weight: 400; }
     .card-header button { 
-      background: rgba(255,255,255,0.1); 
-      border: none; 
-      color: #fff; 
-      padding: 0.4rem 0.8rem; 
-      border-radius: 6px; 
-      cursor: pointer;
+      background: rgba(255,255,255,0.1); border: none; color: #fff; 
+      padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
     }
     .card-header button:hover { background: rgba(255,255,255,0.2); }
     
     .empty { opacity: 0.5; text-align: center; padding: 1rem; }
     .signal-list, .log-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .signal-row, .log-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.6rem 0.8rem;
-      background: rgba(255,255,255,0.05);
-      border-radius: 8px;
-      font-size: 0.85rem;
-      gap: 0.5rem;
+      display: flex; justify-content: space-between; padding: 0.6rem 0.8rem;
+      background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.85rem; gap: 0.5rem;
     }
     .signal-row.buy { border-left: 3px solid #00c853; }
     .signal-row.sell { border-left: 3px solid #ff5252; }
@@ -212,7 +260,7 @@ import { InstrumentService, Instrument } from './instrument.service';
     .time { opacity: 0.6; font-size: 0.8rem; }
     
     /* Log styles */
-    .log-row { display: grid; grid-template-columns: 70px 120px 140px 1fr; align-items: center; }
+    .log-row { display: grid; grid-template-columns: 70px 130px 140px 1fr; align-items: center; }
     .log-row.entry, .log-row.buy_signal { border-left: 3px solid #00c853; }
     .log-row.entry .log-event, .log-row.buy_signal .log-event { color: #00c853; }
     .log-row.blocked { border-left: 3px solid #ff9800; }
@@ -221,6 +269,10 @@ import { InstrumentService, Instrument } from './instrument.service';
     .log-row.stop_loss .log-event { color: #ff5252; }
     .log-row.sell_exit, .log-row.sell_signal { border-left: 3px solid #ff5252; }
     .log-row.sell_exit .log-event, .log-row.sell_signal .log-event { color: #ff5252; }
+    .log-row.live_activated { border-left: 3px solid #ff5252; }
+    .log-row.live_activated .log-event { color: #ff5252; }
+    .log-row.live_closed { border-left: 3px solid #ff9800; }
+    .log-row.live_closed .log-event { color: #ff9800; }
     .log-row.minute_retry { border-left: 3px solid #2196f3; }
     .log-row.minute_retry .log-event { color: #2196f3; }
     .log-time { opacity: 0.6; }

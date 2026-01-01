@@ -21,7 +21,21 @@ export interface FsmSnapshot {
   state: FsmState;
   blockedAtMs: number | null;
   lastCheckedAtMs: number | null;
+  
+  // Paper trading
   entryPrice: number | null;
+  lot: number;
+  unrealizedPnL: number;
+  realizedPnL: number;
+  cumPnL: number;
+  
+  // Live trading
+  liveActive: boolean;
+  liveEntryPrice: number | null;
+  liveUnrealizedPnL: number;
+  liveRealizedPnL: number;
+  liveCumPnL: number;
+  
   stateLog: StateLogEntry[];
 }
 

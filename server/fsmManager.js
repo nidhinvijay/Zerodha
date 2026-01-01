@@ -14,7 +14,7 @@ class FsmManager {
   // Initialize FSM for each instrument
   init(instruments) {
     for (const inst of instruments) {
-      this.fsms.set(inst.token, new FSM(inst.zerodha));
+      this.fsms.set(inst.token, new FSM(inst.zerodha, inst.lot));
       this.signals.set(inst.token, []);
     }
     console.log(`[FsmManager] Initialized ${this.fsms.size} FSMs`);

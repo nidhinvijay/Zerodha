@@ -1,5 +1,5 @@
 /**
- * FSM (Finite State Machine) for trading
+ * FSM (Finite State Machine) for trading with Paper Trading & Live Switch
  * States: NOSIGNAL → NOPOSITION_SIGNAL → BUYPOSITION or NOPOSITION_BLOCKED
  */
 
@@ -11,17 +11,56 @@ const STATES = {
 };
 
 class FSM {
-  constructor(symbol) {
+  constructor(symbol, lot = 1) {
     this.symbol = symbol;
+    this.lot = lot;
     this.state = STATES.NOSIGNAL;
     this.threshold = null;
     this.ltp = null;
     this.blockedAtMs = null;
     this.lastCheckedAtMs = null;
+    
+    // Paper trading
     this.entryPrice = null;
+    this.realizedPnL = 0;
+    
+    // Live trading
+    this.liveActive = false;
+    this.liveEntryPrice = null;
+    this.liveRealizedPnL = 0;
+    
+    // Trade history
+    this.paperTrades = [];
+    this.liveTrades = [];
     
     // State change log (keeps last 50)
     this.stateLog = [];
+  }
+
+  // Calculate unrealized PnL (while in position)
+  getUnrealizedPnL() {
+    if (this.state !== STATES.BUYPOSITION || !this.entryPrice || !this.ltp) {
+      return 0;
+    }
+    return (this.ltp - this.entryPrice) * this.lot;
+  }
+
+  // Calculate cumulative PnL
+  getCumPnL() {
+    return this.getUnrealizedPnL() + this.realizedPnL;
+  }
+
+  // Get live unrealized PnL
+  getLiveUnrealizedPnL() {
+    if (!this.liveActive || !this.liveEntryPrice || !this.ltp) {
+      return 0;
+    }
+    return (this.ltp - this.liveEntryPrice) * this.lot;
+  }
+
+  // Get live cumulative PnL
+  getLiveCumPnL() {
+    return this.getLiveUnrealizedPnL() + this.liveRealizedPnL;
   }
 
   // Log state change with timestamp
@@ -36,7 +75,74 @@ class FSM {
     };
     this.stateLog.unshift(entry);
     if (this.stateLog.length > 50) this.stateLog.pop();
-    console.log(`[FSM] ${event}: state=${this.state}, ltp=${this.ltp}, threshold=${this.threshold}`);
+    console.log(`[FSM] ${event}: state=${this.state}, ltp=${this.ltp}, cumPnL=${this.getCumPnL().toFixed(2)}, liveActive=${this.liveActive}`);
+  }
+
+  // Check if live should activate
+  checkLiveActivation() {
+    if (this.liveActive) return; // Already active
+    if (this.state !== STATES.BUYPOSITION) return; // Must be in position
+    
+    const cumPnL = this.getCumPnL();
+    if (cumPnL > 0) {
+      // Activate live!
+      this.liveActive = true;
+      this.liveEntryPrice = this.ltp;
+      this.logStateChange('LIVE_ACTIVATED', { 
+        cumPnL, 
+        liveEntryPrice: this.liveEntryPrice 
+      });
+    }
+  }
+
+  // Close paper position
+  closePaperPosition(exitPrice, reason) {
+    if (!this.entryPrice) return;
+    
+    const pnl = (exitPrice - this.entryPrice) * this.lot;
+    this.realizedPnL += pnl;
+    
+    // Store trade
+    this.paperTrades.unshift({
+      entry: this.entryPrice,
+      exit: exitPrice,
+      pnl,
+      lot: this.lot,
+      reason,
+      timestamp: new Date().toISOString()
+    });
+    if (this.paperTrades.length > 50) this.paperTrades.pop();
+    
+    this.entryPrice = null;
+  }
+
+  // Close live position
+  closeLivePosition(exitPrice, reason) {
+    if (!this.liveActive || !this.liveEntryPrice) return;
+    
+    const pnl = (exitPrice - this.liveEntryPrice) * this.lot;
+    this.liveRealizedPnL += pnl;
+    
+    // Store trade
+    this.liveTrades.unshift({
+      entry: this.liveEntryPrice,
+      exit: exitPrice,
+      pnl,
+      lot: this.lot,
+      reason,
+      timestamp: new Date().toISOString()
+    });
+    if (this.liveTrades.length > 50) this.liveTrades.pop();
+    
+    this.logStateChange('LIVE_CLOSED', { 
+      liveEntryPrice: this.liveEntryPrice,
+      exitPrice,
+      pnl,
+      reason 
+    });
+    
+    this.liveActive = false;
+    this.liveEntryPrice = null;
   }
 
   // Handle incoming signal
@@ -57,12 +163,24 @@ class FSM {
     } else if (signal.intent === 'SELL') {
       const prevState = this.state;
       const wasInPosition = this.state === STATES.BUYPOSITION;
+      
+      if (wasInPosition) {
+        // Close paper position
+        this.closePaperPosition(this.ltp, 'SELL_SIGNAL');
+        
+        // Close live if active
+        if (this.liveActive) {
+          this.closeLivePosition(this.ltp, 'SELL_SIGNAL');
+        }
+      }
+      
       this.state = STATES.NOSIGNAL;
       this.threshold = null;
       this.blockedAtMs = null;
-      this.entryPrice = null;
-      // Log only once
-      this.logStateChange(wasInPosition ? 'SELL_EXIT' : 'SELL_SIGNAL', { prevState, exitPrice: wasInPosition ? this.ltp : null });
+      this.logStateChange(wasInPosition ? 'SELL_EXIT' : 'SELL_SIGNAL', { 
+        prevState, 
+        exitPrice: wasInPosition ? this.ltp : null 
+      });
     }
     return this.getSnapshot();
   }
@@ -76,6 +194,12 @@ class FSM {
     if (this.state !== STATES.NOSIGNAL) {
       this.evaluate('TICK');
     }
+    
+    // Check if live should activate (cumPnL > 0)
+    if (this.state === STATES.BUYPOSITION) {
+      this.checkLiveActivation();
+    }
+    
     return this.getSnapshot();
   }
 
@@ -98,10 +222,19 @@ class FSM {
       // Below threshold
       if (this.state === STATES.BUYPOSITION) {
         // Stop loss triggered
-        this.logStateChange('STOP_LOSS', { trigger, prevState, exitPrice: this.ltp });
+        const exitPrice = this.ltp;
+        
+        // Close paper position
+        this.closePaperPosition(exitPrice, 'STOP_LOSS');
+        
+        // Close live if active
+        if (this.liveActive) {
+          this.closeLivePosition(exitPrice, 'STOP_LOSS');
+        }
+        
+        this.logStateChange('STOP_LOSS', { trigger, prevState, exitPrice });
         this.state = STATES.NOSIGNAL;
         this.threshold = null;
-        this.entryPrice = null;
       } else if (this.state === STATES.NOPOSITION_SIGNAL || this.state === STATES.NOPOSITION_BLOCKED) {
         // Block entry
         if (this.state !== STATES.NOPOSITION_BLOCKED) {
@@ -132,8 +265,24 @@ class FSM {
       threshold: this.threshold,
       blockedAtMs: this.blockedAtMs,
       lastCheckedAtMs: this.lastCheckedAtMs,
+      
+      // Paper trading
       entryPrice: this.entryPrice,
-      stateLog: this.stateLog.slice(0, 10) // Send last 10 entries
+      lot: this.lot,
+      unrealizedPnL: this.getUnrealizedPnL(),
+      realizedPnL: this.realizedPnL,
+      cumPnL: this.getCumPnL(),
+      paperTrades: this.paperTrades.slice(0, 5),
+      
+      // Live trading
+      liveActive: this.liveActive,
+      liveEntryPrice: this.liveEntryPrice,
+      liveUnrealizedPnL: this.getLiveUnrealizedPnL(),
+      liveRealizedPnL: this.liveRealizedPnL,
+      liveCumPnL: this.getLiveCumPnL(),
+      liveTrades: this.liveTrades.slice(0, 5),
+      
+      stateLog: this.stateLog.slice(0, 10)
     };
   }
 
@@ -144,6 +293,10 @@ class FSM {
     this.blockedAtMs = null;
     this.lastCheckedAtMs = null;
     this.entryPrice = null;
+    this.realizedPnL = 0;
+    this.liveActive = false;
+    this.liveEntryPrice = null;
+    this.liveRealizedPnL = 0;
     this.logStateChange('RESET', {});
   }
 }
