@@ -4,53 +4,53 @@ const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
 const { KiteTicker } = require("kiteconnect");
-const { FSM } = require("./fsm");
+
+// Modules
+const { loadInstruments, findByTradingview, findByToken, getAllTokens } = require("./instruments");
+const fsmManager = require("./fsmManager");
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Serve Angular build (production)
+// Serve Angular build
 const angularDist = path.join(__dirname, "../angular/dist/angular/browser");
 app.use(express.static(angularDist));
 
-// Single instrument config
-const INSTRUMENT = {
-  token: 10361602,
-  symbol: "NIFTY2610626150CE",
-  lot: 65
-};
+// Load instruments from .env
+const instruments = loadInstruments();
+fsmManager.init(instruments);
 
-// Initialize FSM
-const fsm = new FSM(INSTRUMENT.symbol);
+// Track last tick per instrument
+const lastTicks = new Map(); // token -> tick
 
 let ticker = null;
-let lastTick = null;
-let signals = []; // Store last 20 signals
 
 // Parse JSON and text body
 app.use(express.json());
 app.use(express.text());
 
-// Health check API
+// API: Get all instruments
+app.get("/api/instruments", (req, res) => res.json(instruments));
+
+// API: Health check
 app.get("/api/health", (req, res) => res.json({ 
   status: "ok", 
-  instrument: INSTRUMENT.symbol,
-  fsm: fsm.getSnapshot()
+  instrumentCount: instruments.length
 }));
 
 // Parse TradingView text format
 function parseSignal(body) {
   if (typeof body === 'object') {
     return {
-      symbol: body.symbol || body.sym || INSTRUMENT.symbol,
+      symbol: body.symbol || body.sym,
       intent: body.intent || body.side || "UNKNOWN",
       stoppx: parseFloat(body.stoppx || body.stopPx || body.price) || null
     };
   }
   
   const text = String(body);
-  const signal = { symbol: INSTRUMENT.symbol, intent: "UNKNOWN", stoppx: null };
+  const signal = { symbol: null, intent: "UNKNOWN", stoppx: null };
   
   if (text.includes("Entry")) signal.intent = "BUY";
   else if (text.includes("Exit")) signal.intent = "SELL";
@@ -67,20 +67,29 @@ function parseSignal(body) {
 // Webhook endpoint
 app.post("/webhook", (req, res) => {
   const parsed = parseSignal(req.body);
-  const signal = { ...parsed, timestamp: new Date().toISOString() };
+  
+  // Find instrument by tradingview symbol
+  const inst = findByTradingview(instruments, parsed.symbol);
+  if (!inst) {
+    console.log("Webhook: Unknown symbol:", parsed.symbol);
+    return res.status(400).json({ error: "Unknown symbol", symbol: parsed.symbol });
+  }
+  
+  const signal = { 
+    ...parsed, 
+    token: inst.token,
+    zerodha: inst.zerodha,
+    timestamp: new Date().toISOString() 
+  };
   
   console.log("Webhook received:", signal);
   
-  // Update FSM with signal
-  const fsmState = fsm.handleSignal(signal);
+  // Update FSM
+  const fsmState = fsmManager.handleSignal(inst.token, signal);
   
-  // Store signal (keep last 100)
-  signals.unshift(signal);
-  if (signals.length > 100) signals.pop();
-  
-  // Broadcast signal and FSM state
+  // Broadcast to clients watching this instrument
   io.emit("signal", signal);
-  io.emit("fsm", fsmState);
+  io.emit("fsm", { token: inst.token, ...fsmState });
   
   res.json({ status: "ok", received: signal, fsm: fsmState });
 });
@@ -94,10 +103,19 @@ app.get("*", (req, res) => {
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
   
-  // Send current state on connect
-  if (lastTick) socket.emit("tick", lastTick);
-  socket.emit("fsm", fsm.getSnapshot());
-  socket.emit("signals", signals); // Send signal history
+  // Send instruments list
+  socket.emit("instruments", instruments);
+  
+  // Client can request state for an instrument
+  socket.on("selectInstrument", (token) => {
+    const tick = lastTicks.get(token);
+    const snapshot = fsmManager.getSnapshot(token);
+    if (tick) socket.emit("tick", tick);
+    if (snapshot) {
+      socket.emit("fsm", { token, ...snapshot.fsm });
+      socket.emit("signals", snapshot.signals);
+    }
+  });
   
   socket.on("disconnect", () => console.log("Client disconnected:", socket.id));
 });
@@ -112,19 +130,27 @@ function startTicker() {
     return;
   }
 
+  if (instruments.length === 0) {
+    console.warn("No instruments to subscribe");
+    return;
+  }
+
+  const tokens = getAllTokens(instruments);
   ticker = new KiteTicker({ api_key: apiKey, access_token: accessToken });
 
   ticker.on("connect", () => {
-    console.log("KiteTicker connected, subscribing to:", INSTRUMENT.symbol);
-    ticker.subscribe([INSTRUMENT.token]);
-    ticker.setMode(ticker.modeFull, [INSTRUMENT.token]);
+    console.log("KiteTicker connected, subscribing to", tokens.length, "instruments");
+    ticker.subscribe(tokens);
+    ticker.setMode(ticker.modeFull, tokens);
   });
 
   ticker.on("ticks", (ticks) => {
-    if (ticks.length > 0) {
-      const t = ticks[0];
-      lastTick = {
-        symbol: INSTRUMENT.symbol,
+    for (const t of ticks) {
+      const inst = findByToken(instruments, t.instrument_token);
+      if (!inst) continue;
+
+      const tick = {
+        symbol: inst.zerodha,
         token: t.instrument_token,
         ltp: t.last_price,
         change: t.change,
@@ -132,12 +158,16 @@ function startTicker() {
         timestamp: new Date().toISOString()
       };
       
-      // Update FSM with tick
-      const fsmState = fsm.handleTick(lastTick);
+      lastTicks.set(t.instrument_token, tick);
       
-      // Broadcast tick and FSM state
-      io.emit("tick", lastTick);
-      io.emit("fsm", fsmState);
+      // Update FSM
+      const fsmState = fsmManager.handleTick(t.instrument_token, tick);
+      
+      // Broadcast tick and FSM
+      io.emit("tick", tick);
+      if (fsmState) {
+        io.emit("fsm", { token: t.instrument_token, ...fsmState });
+      }
     }
   });
 
@@ -152,8 +182,9 @@ function startTicker() {
 setInterval(() => {
   const now = new Date();
   if (now.getSeconds() === 0) {
-    if (fsm.minuteRetry()) {
-      io.emit("fsm", fsm.getSnapshot());
+    const results = fsmManager.minuteRetry();
+    for (const { token, fsm } of results) {
+      io.emit("fsm", { token, ...fsm });
     }
   }
 }, 1000);

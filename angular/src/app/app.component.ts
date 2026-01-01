@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { AsyncPipe, DecimalPipe, DatePipe } from '@angular/common';
 import { SignalService } from './signal.service';
 import { FsmService } from './fsm.service';
+import { InstrumentService, Instrument } from './instrument.service';
 
 @Component({
   selector: 'app-root',
@@ -9,6 +10,17 @@ import { FsmService } from './fsm.service';
   template: `
     <div class="dashboard">
       <h1>📈 Zerodha Tick Dashboard</h1>
+      
+      <!-- Instrument Dropdown -->
+      <div class="instrument-select">
+        <select (change)="onInstrumentChange($event)">
+          @for (inst of instruments$ | async; track inst.token) {
+            <option [value]="inst.token" [selected]="inst.token === (selectedToken$ | async)">
+              {{ inst.zerodha }} ({{ inst.exchange }})
+            </option>
+          }
+        </select>
+      </div>
       
       <!-- FSM State Table -->
       <div class="card fsm-card">
@@ -36,6 +48,10 @@ import { FsmService } from './fsm.service';
                 <td [class.active]="fsm.state === 'NOPOSITION_SIGNAL'">{{ fsm.state === 'NOPOSITION_SIGNAL' }}</td>
                 <td [class.active]="fsm.state === 'BUYPOSITION'" [class.buy]="fsm.state === 'BUYPOSITION'">{{ fsm.state === 'BUYPOSITION' }}</td>
                 <td [class.active]="fsm.state === 'NOPOSITION_BLOCKED'" [class.blocked]="fsm.state === 'NOPOSITION_BLOCKED'">{{ fsm.state === 'NOPOSITION_BLOCKED' }}</td>
+              </tr>
+            } @else {
+              <tr>
+                <td colspan="8" class="empty">Select an instrument</td>
               </tr>
             }
           </tbody>
@@ -86,12 +102,10 @@ import { FsmService } from './fsm.service';
                     <span class="log-time">{{ log.timestamp | date:'HH:mm:ss' }}</span>
                     <span class="log-event">{{ log.event }}</span>
                     <span class="log-state">{{ log.state }}</span>
-                    @if (log.ltp) {
-                      <span class="log-detail">LTP: {{ log.ltp | number:'1.2-2' }}</span>
-                    }
-                    @if (log.threshold) {
-                      <span class="log-detail">TH: {{ log.threshold | number:'1.2-2' }}</span>
-                    }
+                    <span class="log-detail">
+                      @if (log.ltp) { LTP: {{ log.ltp | number:'1.2-2' }} }
+                      @if (log.threshold) { TH: {{ log.threshold | number:'1.2-2' }} }
+                    </span>
                   </div>
                 }
               </div>
@@ -112,7 +126,30 @@ import { FsmService } from './fsm.service';
       flex-direction: column;
       align-items: center;
     }
-    h1 { margin-bottom: 2rem; font-weight: 300; }
+    h1 { margin-bottom: 1rem; font-weight: 300; }
+    
+    /* Instrument Dropdown */
+    .instrument-select {
+      margin-bottom: 1.5rem;
+    }
+    .instrument-select select {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      cursor: pointer;
+      min-width: 300px;
+    }
+    .instrument-select select:focus {
+      outline: none;
+      border-color: #4fc3f7;
+    }
+    .instrument-select select option {
+      background: #1a1a2e;
+      color: #fff;
+    }
     
     /* FSM Table */
     .fsm-card { margin-bottom: 2rem; overflow-x: auto; }
@@ -195,9 +232,17 @@ import { FsmService } from './fsm.service';
 export class AppComponent {
   private signalService = inject(SignalService);
   private fsmService = inject(FsmService);
+  private instrumentService = inject(InstrumentService);
   
+  instruments$ = this.instrumentService.instruments$;
+  selectedToken$ = this.instrumentService.selectedToken$;
   signals$ = this.signalService.signals$;
   fsm$ = this.fsmService.fsm$;
+
+  onInstrumentChange(event: Event) {
+    const token = Number((event.target as HTMLSelectElement).value);
+    this.instrumentService.selectInstrument(token);
+  }
 
   clearSignals() {
     this.signalService.clearSignals();
