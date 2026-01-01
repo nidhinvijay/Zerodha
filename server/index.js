@@ -179,28 +179,13 @@ function startTicker() {
   console.log("Connecting to Zerodha...");
 }
 
-// Minute boundary check for blocked positions + daily reset
+// Minute boundary check for blocked positions
 setInterval(() => {
   const now = new Date();
-  
-  // Minute retry for blocked positions
   if (now.getSeconds() === 0) {
     const results = fsmManager.minuteRetry();
     for (const { token, fsm } of results) {
       io.emit("fsm", { token, ...fsm });
-    }
-    
-    // Daily reset at 15:30 (market close)
-    if (now.getHours() === 15 && now.getMinutes() === 30) {
-      fsmManager.dailyReset();
-      // Broadcast reset to all clients
-      for (const inst of instruments) {
-        const snapshot = fsmManager.getSnapshot(inst.token);
-        if (snapshot) {
-          io.emit("fsm", { token: inst.token, ...snapshot.fsm });
-          io.emit("signals", snapshot.signals);
-        }
-      }
     }
   }
 }, 1000);
