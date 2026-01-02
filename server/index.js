@@ -9,6 +9,7 @@ const { KiteTicker } = require("kiteconnect");
 const { loadInstruments, findByTradingview, findByToken, getAllTokens } = require("./instruments");
 const fsmManager = require("./fsmManager");
 const orders = require("./orders");
+const history = require("./history");
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,25 @@ app.get("/api/health", (req, res) => res.json({
   status: "ok", 
   instrumentCount: instruments.length
 }));
+
+// API: Get history dates
+app.get("/api/history", (req, res) => res.json(history.getDates()));
+
+// API: Get specific day's data
+app.get("/api/history/:date", (req, res) => {
+  const day = history.getDay(req.params.date);
+  if (day) {
+    res.json(day);
+  } else {
+    res.status(404).json({ error: "Day not found" });
+  }
+});
+
+// API: Manual save current day
+app.post("/api/history/save", (req, res) => {
+  const day = history.saveDay(instruments, fsmManager);
+  res.json({ saved: true, date: day.date });
+});
 
 // Parse TradingView text format
 function parseSignal(body) {
@@ -179,13 +199,29 @@ function startTicker() {
   console.log("Connecting to Zerodha...");
 }
 
-// Minute boundary check for blocked positions
+// Minute boundary check for blocked positions + midnight reset
 setInterval(() => {
   const now = new Date();
   if (now.getSeconds() === 0) {
+    // Minute retry for blocked positions
     const results = fsmManager.minuteRetry();
     for (const { token, fsm } of results) {
       io.emit("fsm", { token, ...fsm });
+    }
+    
+    // Midnight reset (00:00)
+    if (now.getHours() === 0 && now.getMinutes() === 0) {
+      console.log('[Server] Midnight - saving history and resetting...');
+      history.saveDay(instruments, fsmManager);
+      fsmManager.dailyReset();
+      // Broadcast reset to all clients
+      for (const inst of instruments) {
+        const snapshot = fsmManager.getSnapshot(inst.token);
+        if (snapshot) {
+          io.emit("fsm", { token: inst.token, ...snapshot.fsm });
+          io.emit("signals", snapshot.signals);
+        }
+      }
     }
   }
 }, 1000);

@@ -1,15 +1,19 @@
 import { Component, inject } from '@angular/core';
 import { AsyncPipe, DecimalPipe, DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { SignalService } from './signal.service';
 import { FsmService } from './fsm.service';
 import { InstrumentService } from './instrument.service';
 
 @Component({
-  selector: 'app-root',
-  imports: [AsyncPipe, DecimalPipe, DatePipe],
+  selector: 'app-dashboard',
+  imports: [AsyncPipe, DecimalPipe, DatePipe, RouterLink],
   template: `
     <div class="dashboard">
-      <h1>📈 Zerodha Tick Dashboard</h1>
+      <div class="header">
+        <h1>📈 Zerodha Tick Dashboard</h1>
+        <a routerLink="/history" class="history-link">📊 History</a>
+      </div>
       
       <!-- Instrument Dropdown -->
       <div class="instrument-select">
@@ -252,7 +256,10 @@ import { InstrumentService } from './instrument.service';
       flex-direction: column;
       align-items: center;
     }
-    h1 { margin-bottom: 1rem; font-weight: 300; }
+    .header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 900px; margin-bottom: 1rem; }
+    h1 { margin: 0; font-weight: 300; }
+    .history-link { color: #4fc3f7; text-decoration: none; font-size: 1rem; }
+    .history-link:hover { text-decoration: underline; }
     
     /* Instrument Dropdown */
     .instrument-select { margin-bottom: 1.5rem; }
@@ -372,7 +379,7 @@ import { InstrumentService } from './instrument.service';
     .trades-table th { opacity: 0.7; font-weight: 500; }
   `]
 })
-export class AppComponent {
+export class DashboardComponent {
   private signalService = inject(SignalService);
   private fsmService = inject(FsmService);
   private instrumentService = inject(InstrumentService);
