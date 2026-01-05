@@ -43,7 +43,7 @@ function saveDay(instruments, fsmManager, signals) {
     const instSignals = fsmManager.getSignals(inst.token);
     
     if (fsm) {
-      const snapshot = fsm.getSnapshot();
+      const snapshot = fsm.getSnapshot(); // Still needed for PnL summaries if computed
       instrumentsData[inst.zerodha] = {
         token: inst.token,
         exchange: inst.exchange,
@@ -51,11 +51,11 @@ function saveDay(instruments, fsmManager, signals) {
         // PnL summary
         paperRealizedPnL: snapshot.realizedPnL,
         liveRealizedPnL: snapshot.liveRealizedPnL,
-        // Trades
-        paperTrades: snapshot.paperTrades || [],
-        liveTrades: snapshot.liveTrades || [],
+        // Trades (Use direct access for full history)
+        paperTrades: fsm.paperTrades || [],
+        liveTrades: fsm.liveTrades || [],
         // Logs
-        stateLog: snapshot.stateLog || [],
+        stateLog: fsm.stateLog || [],
         signals: instSignals || []
       };
     }

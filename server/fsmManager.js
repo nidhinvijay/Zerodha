@@ -5,6 +5,10 @@
 
 const { FSM } = require('./fsm');
 const multiOrders = require('./multiOrders');
+const fs = require('fs');
+const path = require('path');
+
+const STATE_FILE = path.join(__dirname, 'fsm_state.json');
 
 class FsmManager {
   constructor() {
@@ -41,8 +45,15 @@ class FsmManager {
       this.fsms.set(inst.token, fsm);
       this.signals.set(inst.token, []);
     }
+
     console.log(`[FsmManager] Initialized ${this.fsms.size} FSMs with multi-account order callbacks`);
     console.log(`[FsmManager] Enabled accounts: ${multiOrders.getEnabledCount()}`);
+    
+    // Attempt to restore state
+    this.loadState();
+    
+    // Start periodic saving (every 5 seconds)
+    setInterval(() => this.saveState(), 5000);
   }
 
   // Get FSM by token
@@ -118,7 +129,87 @@ class FsmManager {
     }
     
     console.log(`[FsmManager] Reset ${this.fsms.size} FSMs`);
+    this.saveState(); // Save the reset state immediately
     return true;
+  }
+
+  // --- Persistence Methods ---
+
+  saveState() {
+    try {
+      const data = {
+        lastUpdated: new Date().toISOString(),
+        fsms: {},
+        signals: {}
+      };
+
+      // Serialize FSMs
+      for (const [token, fsm] of this.fsms) {
+        data.fsms[token] = fsm.serialize();
+      }
+
+      // Serialize Signals
+      for (const [token, signals] of this.signals) {
+        data.signals[token] = signals;
+      }
+
+      fs.writeFileSync(STATE_FILE, JSON.stringify(data, null, 2));
+      // console.log('[FsmManager] State saved'); // Too verbose for every 5s
+    } catch (err) {
+      console.error('[FsmManager] Failed to save state:', err.message);
+    }
+  }
+
+  loadState() {
+    if (!fs.existsSync(STATE_FILE)) {
+      console.log('[FsmManager] No saved state found. Starting fresh.');
+      return;
+    }
+
+    try {
+      const raw = fs.readFileSync(STATE_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      
+      // Check for stale data (Logic: if last updated was yesterday, ignore or reset)
+      const lastUpdate = new Date(data.lastUpdated);
+      const today = new Date();
+      if (lastUpdate.getDate() !== today.getDate() || 
+          lastUpdate.getMonth() !== today.getMonth() || 
+          lastUpdate.getFullYear() !== today.getFullYear()) {
+        console.log(`[FsmManager] Saved state is from ${lastUpdate.toISOString()}. Ignoring (New Day).`);
+        return;
+      }
+
+      console.log(`[FsmManager] Loading saved state from ${data.lastUpdated}...`);
+      let loadedCount = 0;
+
+      // Restore FSMs
+      if (data.fsms) {
+        for (const [tokenStr, fsmData] of Object.entries(data.fsms)) {
+          const token = parseInt(tokenStr);
+          const fsm = this.fsms.get(token);
+          if (fsm) {
+            fsm.restore(fsmData);
+            loadedCount++;
+          }
+        }
+      }
+
+      // Restore Signals
+      if (data.signals) {
+        for (const [tokenStr, signals] of Object.entries(data.signals)) {
+          const token = parseInt(tokenStr);
+          if (this.instruments.has(token)) {
+             this.signals.set(token, signals);
+          }
+        }
+      }
+
+      console.log(`[FsmManager] Successfully restored state for ${loadedCount} instruments.`);
+
+    } catch (err) {
+      console.error('[FsmManager] Failed to load state:', err.message);
+    }
   }
 }
 

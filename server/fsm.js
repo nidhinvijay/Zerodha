@@ -313,6 +313,64 @@ class FSM {
     };
   }
 
+  // Serialize state for persistence
+  serialize() {
+    return {
+      symbol: this.symbol,
+      lot: this.lot,
+      state: this.state,
+      threshold: this.threshold,
+      ltp: this.ltp,
+      blockedAtMs: this.blockedAtMs,
+      lastCheckedAtMs: this.lastCheckedAtMs,
+      
+      // Paper trading
+      entryPrice: this.entryPrice,
+      entryTime: this.entryTime,
+      realizedPnL: this.realizedPnL,
+      
+      // Live trading
+      liveActive: this.liveActive,
+      liveEntryPrice: this.liveEntryPrice,
+      liveEntryTime: this.liveEntryTime,
+      liveRealizedPnL: this.liveRealizedPnL,
+      
+      // History (full arrays)
+      paperTrades: this.paperTrades,
+      liveTrades: this.liveTrades,
+      stateLog: this.stateLog
+    };
+  }
+
+  // Restore state from persistence
+  restore(data) {
+    if (!data) return;
+    
+    this.state = data.state || STATES.NOSIGNAL;
+    this.threshold = data.threshold;
+    this.ltp = data.ltp;
+    this.blockedAtMs = data.blockedAtMs;
+    this.lastCheckedAtMs = data.lastCheckedAtMs;
+    
+    this.entryPrice = data.entryPrice;
+    this.entryTime = data.entryTime;
+    this.realizedPnL = data.realizedPnL || 0;
+    
+    this.liveActive = data.liveActive || false;
+    this.liveEntryPrice = data.liveEntryPrice;
+    this.liveEntryTime = data.liveEntryTime;
+    this.liveRealizedPnL = data.liveRealizedPnL || 0;
+    
+    this.paperTrades = data.paperTrades || [];
+    this.liveTrades = data.liveTrades || [];
+    this.stateLog = data.stateLog || [];
+    
+    this.logStateChange('STATE_RESTORED', { 
+      recoveredPnL: this.realizedPnL,
+      recoveredLive: this.liveActive
+    });
+  }
+
   // Reset FSM
   reset() {
     this.state = STATES.NOSIGNAL;
