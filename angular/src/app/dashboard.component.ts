@@ -12,7 +12,10 @@ import { InstrumentService } from './instrument.service';
     <div class="dashboard">
       <div class="header">
         <h1>📈 Zerodha Tick Dashboard</h1>
-        <a routerLink="/history" class="history-link">📊 History</a>
+        <div class="header-links">
+          <a routerLink="/accounts" class="accounts-link">👥 Accounts</a>
+          <a routerLink="/history" class="history-link">📊 History</a>
+        </div>
       </div>
       
       <!-- Instrument Dropdown -->
@@ -258,8 +261,9 @@ import { InstrumentService } from './instrument.service';
     }
     .header { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 900px; margin-bottom: 1rem; }
     h1 { margin: 0; font-weight: 300; }
-    .history-link { color: #4fc3f7; text-decoration: none; font-size: 1rem; }
-    .history-link:hover { text-decoration: underline; }
+    .header-links { display: flex; gap: 1rem; }
+    .history-link, .accounts-link { color: #4fc3f7; text-decoration: none; font-size: 1rem; }
+    .history-link:hover, .accounts-link:hover { text-decoration: underline; }
     
     /* Instrument Dropdown */
     .instrument-select { margin-bottom: 1.5rem; }
