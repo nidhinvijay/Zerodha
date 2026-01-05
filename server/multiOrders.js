@@ -222,17 +222,55 @@ function updateLastOrder(id) {
   }
 }
 
-// Place order on a single account
+// Hardcoded capital for quantity calculation
+const CAPITAL = 20000;
+
+// Place order on a single account (with dynamic quantity based on capital)
 async function placeOrderOnAccount(account, instrument, transactionType) {
   const startTime = Date.now();
+  const lotSize = instrument.lot;
   
   try {
+    // 1. Fetch current LTP
+    const instrumentKey = `${instrument.exchange}:${instrument.zerodha}`;
+    const ltpData = await account.kite.getLTP([instrumentKey]);
+    const ltp = ltpData[instrumentKey]?.last_price;
+    
+    if (!ltp || ltp <= 0) {
+      return {
+        account: account.name,
+        accountId: account.id,
+        success: false,
+        error: 'Could not fetch LTP',
+        duration: Date.now() - startTime,
+        message: 'Failed: Could not fetch LTP'
+      };
+    }
+    
+    // 2. Calculate quantity: floor(capital / (ltp * lotSize)) * lotSize
+    const lots = Math.floor(CAPITAL / (ltp * lotSize));
+    const quantity = lots * lotSize;
+    
+    console.log(`[MultiOrders] ${account.name}: LTP=${ltp}, Lots=${lots}, Qty=${quantity}`);
+    
+    if (quantity <= 0) {
+      return {
+        account: account.name,
+        accountId: account.id,
+        success: false,
+        error: `Insufficient capital. Need ₹${(ltp * lotSize).toFixed(0)} for 1 lot, have ₹${CAPITAL}`,
+        duration: Date.now() - startTime,
+        message: `Skipped: Insufficient capital for 1 lot`
+      };
+    }
+    
+    // 3. Place order with calculated quantity
     const order = await account.kite.placeOrder('regular', {
       exchange: instrument.exchange,
       tradingsymbol: instrument.zerodha,
       transaction_type: transactionType,
-      quantity: instrument.lot,
-      product: 'NRML',  // NRML for positional (hold till expiry), MIS for intraday
+      quantity: quantity,
+      product: 'NRML',
       order_type: 'MARKET',
       validity: 'DAY'
     });
@@ -245,8 +283,10 @@ async function placeOrderOnAccount(account, instrument, transactionType) {
       accountId: account.id,
       success: true,
       orderId: order.order_id,
+      quantity: quantity,
+      ltp: ltp,
       duration,
-      message: `Order placed in ${duration}ms`
+      message: `Order placed: ${quantity} qty @ ₹${ltp} in ${duration}ms`
     };
   } catch (err) {
     const duration = Date.now() - startTime;
