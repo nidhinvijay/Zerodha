@@ -71,7 +71,7 @@ async function placeOrder(instrument, transactionType) {
       tradingsymbol: instrument.zerodha,
       transaction_type: transactionType,
       quantity: instrument.lot,
-      product: 'MIS',
+      product: 'NRML',  // NRML for positional (hold till expiry), MIS for intraday
       order_type: 'MARKET',
       validity: 'DAY'
     });
