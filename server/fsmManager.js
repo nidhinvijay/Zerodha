@@ -133,6 +133,30 @@ class FsmManager {
     return true;
   }
 
+  // Reset FSMs by exchange (for weekly expiry-based resets)
+  resetByExchange(exchanges) {
+    console.log('[FsmManager] ═══════════════════════════════════════');
+    console.log(`[FsmManager] EXPIRY RESET - Exchanges: ${exchanges.join(', ')}`);
+    console.log('[FsmManager] ═══════════════════════════════════════');
+    
+    let resetCount = 0;
+    for (const [token, inst] of this.instruments) {
+      if (exchanges.includes(inst.exchange)) {
+        const fsm = this.fsms.get(token);
+        if (fsm) {
+          fsm.reset();
+          this.signals.set(token, []);
+          resetCount++;
+          console.log(`[FsmManager] Reset: ${inst.zerodha} (${inst.exchange})`);
+        }
+      }
+    }
+    
+    console.log(`[FsmManager] Reset ${resetCount} FSMs for exchanges: ${exchanges.join(', ')}`);
+    this.saveState();
+    return resetCount;
+  }
+
   // --- Persistence Methods ---
 
   saveState() {
@@ -170,17 +194,8 @@ class FsmManager {
       const raw = fs.readFileSync(STATE_FILE, 'utf8');
       const data = JSON.parse(raw);
       
-      // Check for stale data (Logic: if last updated was yesterday, ignore or reset)
-      const lastUpdate = new Date(data.lastUpdated);
-      const today = new Date();
-      if (lastUpdate.getDate() !== today.getDate() || 
-          lastUpdate.getMonth() !== today.getMonth() || 
-          lastUpdate.getFullYear() !== today.getFullYear()) {
-        console.log(`[FsmManager] Saved state is from ${lastUpdate.toISOString()}. Ignoring (New Day).`);
-        return;
-      }
-
-      console.log(`[FsmManager] Loading saved state from ${data.lastUpdated}...`);
+      // Note: We no longer reject old state - data persists until expiry-based reset
+      console.log(`[FsmManager] Loading saved state from ${data.lastUpdated} (Ongoing/Expiry Mode)...`);
       let loadedCount = 0;
 
       // Restore FSMs

@@ -412,12 +412,26 @@ setInterval(() => {
       io.emit("fsm", { token, ...fsm });
     }
     
-    // Midnight reset (00:00)
+    // Midnight checkpoint (00:00) - Save history daily, but reset only on expiry days
     if (now.getHours() === 0 && now.getMinutes() === 0) {
-      console.log('[Server] Midnight - saving history and resetting...');
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+      
+      console.log('[Server] Midnight checkpoint - saving history...');
       history.saveDay(instruments, fsmManager);
-      fsmManager.dailyReset();
-      // Broadcast reset to all clients
+      
+      // Wednesday (3) = Reset Nifty/BankNifty (NFO) - Their expiry was Tuesday
+      if (dayOfWeek === 3) {
+        console.log('[Server] 🔄 WEDNESDAY - Resetting Nifty/BankNifty (NFO) after Tuesday expiry');
+        fsmManager.resetByExchange(['NFO', 'NSE']);
+      }
+      
+      // Friday (5) = Reset Sensex (BFO) - Their expiry was Thursday
+      if (dayOfWeek === 5) {
+        console.log('[Server] 🔄 FRIDAY - Resetting Sensex (BFO) after Thursday expiry');
+        fsmManager.resetByExchange(['BFO', 'BSE']);
+      }
+      
+      // Broadcast updated state to all clients
       for (const inst of instruments) {
         const snapshot = fsmManager.getSnapshot(inst.token);
         if (snapshot) {

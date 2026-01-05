@@ -50,8 +50,7 @@ pm2 start "cloudflared tunnel --url http://localhost:3004" --name "tunnel"
 pm2 save
 
 # Get the public URL
-sleep 5
-pm2 logs tunnel --lines 20 | grep -o 'https://[^"]*\.trycloudflare\.com'
+sleep 5 && pm2 logs tunnel --lines 20 | grep -o 'https://[^"]*\.trycloudflare\.com'
 
 # ============================================
 # STEP 4: Pull Updates & Restart
