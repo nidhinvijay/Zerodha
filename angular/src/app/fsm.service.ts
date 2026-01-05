@@ -20,6 +20,8 @@ export interface Trade {
   lot: number;
   reason: string;
   timestamp: string;
+  entryTime?: string;
+  exitTime?: string;
 }
 
 export interface FsmSnapshot {

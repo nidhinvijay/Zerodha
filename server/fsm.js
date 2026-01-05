@@ -26,11 +26,13 @@ class FSM {
     
     // Paper trading
     this.entryPrice = null;
+    this.entryTime = null;  // Entry timestamp for paper
     this.realizedPnL = 0;
     
     // Live trading
     this.liveActive = false;
     this.liveEntryPrice = null;
+    this.liveEntryTime = null;  // Entry timestamp for live
     this.liveRealizedPnL = 0;
     
     // Trade history
@@ -92,6 +94,7 @@ class FSM {
       // Activate live!
       this.liveActive = true;
       this.liveEntryPrice = this.ltp;
+      this.liveEntryTime = new Date().toISOString();  // Record live entry time
       this.logStateChange('LIVE_ACTIVATED', { 
         cumPnL, 
         liveEntryPrice: this.liveEntryPrice 
@@ -111,18 +114,20 @@ class FSM {
     const pnl = (exitPrice - this.entryPrice) * this.lot;
     this.realizedPnL += pnl;
     
-    // Store trade
+    // Store trade with entry and exit times
     this.paperTrades.unshift({
       entry: this.entryPrice,
       exit: exitPrice,
       pnl,
       lot: this.lot,
       reason,
-      timestamp: new Date().toISOString()
+      entryTime: this.entryTime,
+      exitTime: new Date().toISOString()
     });
     if (this.paperTrades.length > 50) this.paperTrades.pop();
     
     this.entryPrice = null;
+    this.entryTime = null;
   }
 
   // Close live position
@@ -132,14 +137,15 @@ class FSM {
     const pnl = (exitPrice - this.liveEntryPrice) * this.lot;
     this.liveRealizedPnL += pnl;
     
-    // Store trade
+    // Store trade with entry and exit times
     this.liveTrades.unshift({
       entry: this.liveEntryPrice,
       exit: exitPrice,
       pnl,
       lot: this.lot,
       reason,
-      timestamp: new Date().toISOString()
+      entryTime: this.liveEntryTime,
+      exitTime: new Date().toISOString()
     });
     if (this.liveTrades.length > 50) this.liveTrades.pop();
     
@@ -157,6 +163,7 @@ class FSM {
     
     this.liveActive = false;
     this.liveEntryPrice = null;
+    this.liveEntryTime = null;
   }
 
   // Handle incoming signal
@@ -175,6 +182,10 @@ class FSM {
         this.evaluate('SIGNAL_EVAL');
       }
     } else if (signal.intent === 'SELL') {
+      // SELL signals are currently disabled - uncomment below to re-enable
+      console.log(`[FSM] SELL signal ignored (disabled)`);
+      
+      /*
       const prevState = this.state;
       const wasInPosition = this.state === STATES.BUYPOSITION;
       
@@ -195,6 +206,7 @@ class FSM {
         prevState, 
         exitPrice: wasInPosition ? this.ltp : null 
       });
+      */
     }
     return this.getSnapshot();
   }
@@ -229,6 +241,7 @@ class FSM {
       if (this.state !== STATES.BUYPOSITION) {
         this.state = STATES.BUYPOSITION;
         this.entryPrice = this.ltp;
+        this.entryTime = new Date().toISOString();  // Record paper entry time
         this.blockedAtMs = null;
         this.logStateChange('ENTRY', { trigger, prevState, entryPrice: this.entryPrice });
       }

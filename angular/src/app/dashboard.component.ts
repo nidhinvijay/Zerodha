@@ -176,7 +176,7 @@ import { InstrumentService } from './instrument.service';
             <div class="card-header">
               <h2>📝 Paper Trades</h2>
             </div>
-            @if (fsm.paperTrades?.length === 0) {
+            @if (fsm.paperTrades.length === 0) {
               <div class="empty">No paper trades yet</div>
             } @else {
               <table class="trades-table">
@@ -187,11 +187,12 @@ import { InstrumentService } from './instrument.service';
                     <th>Lot</th>
                     <th>PnL</th>
                     <th>Reason</th>
-                    <th>Time</th>
+                    <th>Entry Time</th>
+                    <th>Exit Time</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (trade of fsm.paperTrades; track trade.timestamp) {
+                  @for (trade of fsm.paperTrades; track trade.exitTime) {
                     <tr>
                       <td>₹{{ trade.entry | number:'1.2-2' }}</td>
                       <td>₹{{ trade.exit | number:'1.2-2' }}</td>
@@ -200,7 +201,8 @@ import { InstrumentService } from './instrument.service';
                         ₹{{ trade.pnl | number:'1.2-2' }}
                       </td>
                       <td>{{ trade.reason }}</td>
-                      <td>{{ trade.timestamp | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.entryTime | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.exitTime | date:'HH:mm:ss' }}</td>
                     </tr>
                   }
                 </tbody>
@@ -213,7 +215,7 @@ import { InstrumentService } from './instrument.service';
             <div class="card-header">
               <h2>🔴 Live Trades</h2>
             </div>
-            @if (fsm.liveTrades?.length === 0) {
+            @if (fsm.liveTrades.length === 0) {
               <div class="empty">No live trades yet</div>
             } @else {
               <table class="trades-table">
@@ -224,11 +226,12 @@ import { InstrumentService } from './instrument.service';
                     <th>Lot</th>
                     <th>PnL</th>
                     <th>Reason</th>
-                    <th>Time</th>
+                    <th>Entry Time</th>
+                    <th>Exit Time</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (trade of fsm.liveTrades; track trade.timestamp) {
+                  @for (trade of fsm.liveTrades; track trade.exitTime) {
                     <tr>
                       <td>₹{{ trade.entry | number:'1.2-2' }}</td>
                       <td>₹{{ trade.exit | number:'1.2-2' }}</td>
@@ -237,7 +240,8 @@ import { InstrumentService } from './instrument.service';
                         ₹{{ trade.pnl | number:'1.2-2' }}
                       </td>
                       <td>{{ trade.reason }}</td>
-                      <td>{{ trade.timestamp | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.entryTime | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.exitTime | date:'HH:mm:ss' }}</td>
                     </tr>
                   }
                 </tbody>

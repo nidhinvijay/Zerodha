@@ -13,6 +13,7 @@ const orders = require("./orders");
 const history = require("./history");
 const multiOrders = require("./multiOrders");
 
+
 const app = express();
 app.use(cors()); // Enable CORS for all origins
 const server = http.createServer(app);
@@ -43,6 +44,8 @@ app.get("/api/health", (req, res) => res.json({
   status: "ok", 
   instrumentCount: instruments.length
 }));
+
+
 
 // API: Get history dates
 app.get("/api/history", (req, res) => res.json(history.getDates()));
