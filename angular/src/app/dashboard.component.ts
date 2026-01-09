@@ -4,10 +4,11 @@ import { RouterLink } from '@angular/router';
 import { SignalService } from './signal.service';
 import { FsmService } from './fsm.service';
 import { InstrumentService } from './instrument.service';
+import { SmartDatePipe } from './smart-date.pipe';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AsyncPipe, DecimalPipe, DatePipe, RouterLink],
+  imports: [AsyncPipe, DecimalPipe, DatePipe, RouterLink, SmartDatePipe],
   template: `
     <div class="dashboard">
       <div class="header">
@@ -56,7 +57,7 @@ import { InstrumentService } from './instrument.service';
           </tbody>
         </table>
         @if ((fsm$ | async)?.blockedAtMs; as blockedAt) {
-          <div class="blocked-info">⏳ Blocked since {{ blockedAt | date:'HH:mm:ss' }} — retries at next :00</div>
+          <div class="blocked-info">⏳ Blocked since {{ blockedAt | smartDate }} — retries at next :00</div>
         }
       </div>
 
@@ -133,7 +134,7 @@ import { InstrumentService } from './instrument.service';
                   <div class="signal-row" [class.buy]="s.intent === 'BUY'" [class.sell]="s.intent === 'SELL'">
                     <span class="intent">{{ s.intent }}</span>
                     <span class="stoppx">₹{{ s.stoppx | number:'1.2-2' }}</span>
-                    <span class="time">{{ s.timestamp | date:'HH:mm:ss' }}</span>
+                    <span class="time">{{ s.timestamp | smartDate }}</span>
                   </div>
                 }
               </div>
@@ -153,7 +154,7 @@ import { InstrumentService } from './instrument.service';
               <div class="log-list">
                 @for (log of fsm.stateLog; track log.timestamp) {
                   <div class="log-row" [class]="log.event.toLowerCase()">
-                    <span class="log-time">{{ log.timestamp | date:'HH:mm:ss' }}</span>
+                    <span class="log-time">{{ log.timestamp | smartDate }}</span>
                     <span class="log-event">{{ log.event }}</span>
                     <span class="log-state">{{ log.state }}</span>
                     <span class="log-detail">
@@ -201,8 +202,8 @@ import { InstrumentService } from './instrument.service';
                         ₹{{ trade.pnl | number:'1.2-2' }}
                       </td>
                       <td>{{ trade.reason }}</td>
-                      <td>{{ trade.entryTime | date:'HH:mm:ss' }}</td>
-                      <td>{{ trade.exitTime | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.entryTime | smartDate }}</td>
+                      <td>{{ trade.exitTime | smartDate }}</td>
                     </tr>
                   }
                 </tbody>
@@ -240,8 +241,8 @@ import { InstrumentService } from './instrument.service';
                         ₹{{ trade.pnl | number:'1.2-2' }}
                       </td>
                       <td>{{ trade.reason }}</td>
-                      <td>{{ trade.entryTime | date:'HH:mm:ss' }}</td>
-                      <td>{{ trade.exitTime | date:'HH:mm:ss' }}</td>
+                      <td>{{ trade.entryTime | smartDate }}</td>
+                      <td>{{ trade.exitTime | smartDate }}</td>
                     </tr>
                   }
                 </tbody>
@@ -391,7 +392,7 @@ export class DashboardComponent {
   private signalService = inject(SignalService);
   private fsmService = inject(FsmService);
   private instrumentService = inject(InstrumentService);
-  
+
   instruments$ = this.instrumentService.instruments$;
   selectedToken$ = this.instrumentService.selectedToken$;
   signals$ = this.signalService.signals$;

@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
+import { SmartDatePipe } from './smart-date.pipe';
 
 interface HistoryDate {
   date: string;
@@ -38,7 +39,7 @@ interface DayData {
 @Component({
   selector: 'app-history',
   standalone: true,
-  imports: [CommonModule, DatePipe, DecimalPipe, RouterLink],
+  imports: [CommonModule, DatePipe, DecimalPipe, RouterLink, SmartDatePipe],
   template: `
     <div class="history-page">
       <div class="header">
@@ -103,7 +104,7 @@ interface DayData {
                             <td>₹{{ t.exit | number:'1.2-2' }}</td>
                             <td [class.positive]="t.pnl > 0" [class.negative]="t.pnl < 0">₹{{ t.pnl | number:'1.2-2' }}</td>
                             <td>{{ t.reason }}</td>
-                            <td>{{ t.timestamp | date:'HH:mm:ss' }}</td>
+                            <td>{{ t.timestamp | smartDate }}</td>
                           </tr>
                         }
                       </tbody>
@@ -126,7 +127,7 @@ interface DayData {
                             <td>₹{{ t.exit | number:'1.2-2' }}</td>
                             <td [class.positive]="t.pnl > 0" [class.negative]="t.pnl < 0">₹{{ t.pnl | number:'1.2-2' }}</td>
                             <td>{{ t.reason }}</td>
-                            <td>{{ t.timestamp | date:'HH:mm:ss' }}</td>
+                            <td>{{ t.timestamp | smartDate }}</td>
                           </tr>
                         }
                       </tbody>
@@ -146,7 +147,7 @@ interface DayData {
                     <tbody>
                       @for (log of inst.data.stateLog; track log.timestamp) {
                         <tr>
-                          <td>{{ log.timestamp | date:'HH:mm:ss' }}</td>
+                          <td>{{ log.timestamp | smartDate }}</td>
                           <td>{{ log.event }}</td>
                           <td>{{ log.state }}</td>
                           <td>{{ log.ltp | number:'1.2-2' }}</td>
@@ -169,7 +170,7 @@ interface DayData {
                     <tbody>
                       @for (s of inst.data.signals; track s.timestamp) {
                         <tr>
-                          <td>{{ s.timestamp | date:'HH:mm:ss' }}</td>
+                          <td>{{ s.timestamp | smartDate }}</td>
                           <td [class.buy]="s.intent === 'BUY'" [class.sell]="s.intent === 'SELL'">{{ s.intent }}</td>
                           <td>₹{{ s.stoppx | number:'1.2-2' }}</td>
                         </tr>
@@ -253,7 +254,7 @@ interface DayData {
 })
 export class HistoryComponent implements OnInit {
   private http = inject(HttpClient);
-  
+
   dates: HistoryDate[] = [];
   selectedDate: string | null = null;
   dayData: DayData | null = null;
