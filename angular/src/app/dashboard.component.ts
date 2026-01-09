@@ -8,7 +8,7 @@ import { SmartDatePipe } from './smart-date.pipe';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [AsyncPipe, DecimalPipe, DatePipe, RouterLink, SmartDatePipe],
+  imports: [AsyncPipe, DecimalPipe, RouterLink, SmartDatePipe],
   template: `
     <div class="dashboard">
       <div class="header">
